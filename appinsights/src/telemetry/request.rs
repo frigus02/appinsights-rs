@@ -8,7 +8,7 @@ use crate::context::TelemetryContext;
 use crate::contracts::*;
 use crate::telemetry::{ContextTags, Measurements, Properties, Telemetry};
 use crate::time::{self, Duration};
-use crate::uuid::{self, Uuid};
+use crate::uuid;
 
 /// Represents completion of an external request to the application and contains a summary of that
 /// request execution and results. This struct is focused on HTTP requests.
@@ -40,7 +40,7 @@ use crate::uuid::{self, Uuid};
 pub struct RequestTelemetry {
     /// Identifier of a request call instance.
     /// It is used for correlation between request and other telemetry items.
-    id: Uuid,
+    id: String,
 
     /// Request name. For HTTP requests it represents the HTTP method and URL path template.
     name: String,
@@ -70,6 +70,23 @@ pub struct RequestTelemetry {
 impl RequestTelemetry {
     /// Creates a new telemetry item for HTTP request.
     pub fn new(method: Method, uri: Uri, duration: StdDuration, response_code: impl Into<String>) -> Self {
+        Self::with_id(
+            uuid::new().to_hyphenated().to_string(),
+            method,
+            uri,
+            duration,
+            response_code,
+        )
+    }
+
+    /// Creates a new telemetry item for HTTP request with a custom id.
+    pub fn with_id(
+        id: String,
+        method: Method,
+        uri: Uri,
+        duration: StdDuration,
+        response_code: impl Into<String>,
+    ) -> Self {
         let mut authority = String::new();
         if let Some(host) = &uri.host() {
             authority.push_str(host);
@@ -86,7 +103,7 @@ impl RequestTelemetry {
             .unwrap_or(uri);
 
         Self {
-            id: uuid::new(),
+            id,
             name: format!("{} {}", method, uri),
             uri,
             duration: duration.into(),
@@ -154,7 +171,7 @@ impl From<(TelemetryContext, RequestTelemetry)> for Envelope {
             i_key: Some(context.i_key),
             tags: Some(ContextTags::combine(context.tags, telemetry.tags).into()),
             data: Some(Base::Data(Data::RequestData(RequestData {
-                id: telemetry.id.to_hyphenated().to_string(),
+                id: telemetry.id,
                 name: Some(telemetry.name),
                 duration: telemetry.duration.to_string(),
                 response_code: telemetry.response_code,

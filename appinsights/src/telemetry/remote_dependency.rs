@@ -6,7 +6,6 @@ use crate::context::TelemetryContext;
 use crate::contracts::*;
 use crate::telemetry::{ContextTags, Measurements, Properties, Telemetry};
 use crate::time::{self, Duration};
-use crate::uuid::Uuid;
 
 /// Represents interactions of the monitored component with a remote component/service like SQL or an HTTP endpoint.
 ///
@@ -37,7 +36,7 @@ use crate::uuid::Uuid;
 pub struct RemoteDependencyTelemetry {
     /// Identifier of a dependency call instance.
     /// It is used for correlation with the request telemetry item corresponding to this dependency call.
-    id: Option<Uuid>,
+    id: Option<String>,
 
     /// Name of the command that initiated this dependency call. Low cardinality value.
     /// Examples are stored procedure name and URL path template.
@@ -103,6 +102,31 @@ impl RemoteDependencyTelemetry {
         }
     }
 
+    /// Creates a new telemetry item with specified id, name, dependency type, target site and success status.
+    pub fn with_id(
+        id: String,
+        name: impl Into<String>,
+        dependency_type: impl Into<String>,
+        duration: StdDuration,
+        target: impl Into<String>,
+        success: bool,
+    ) -> Self {
+        Self {
+            id: Some(id),
+            name: name.into(),
+            duration: duration.into(),
+            result_code: Option::default(),
+            success,
+            data: Option::default(),
+            dependency_type: dependency_type.into(),
+            target: target.into(),
+            timestamp: time::now(),
+            properties: Properties::default(),
+            tags: ContextTags::default(),
+            measurements: Measurements::default(),
+        }
+    }
+
     /// Returns custom measurements to submit with the telemetry item.
     pub fn measurements(&self) -> &Measurements {
         &self.measurements
@@ -150,7 +174,7 @@ impl From<(TelemetryContext, RemoteDependencyTelemetry)> for Envelope {
             tags: Some(ContextTags::combine(context.tags, telemetry.tags).into()),
             data: Some(Base::Data(Data::RemoteDependencyData(RemoteDependencyData {
                 name: telemetry.name,
-                id: telemetry.id.map(|id| id.to_hyphenated().to_string()),
+                id: telemetry.id,
                 result_code: telemetry.result_code,
                 duration: telemetry.duration.to_string(),
                 success: Some(telemetry.success),
